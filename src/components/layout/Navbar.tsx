@@ -28,6 +28,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const { address, connected, network, connectWallet, disconnectWallet } = useWallet()
+  const visibleNavItems = connected ? navItems : []
 
   useEffect(() => {
     setOpen(false)
@@ -38,7 +39,7 @@ export function Navbar() {
       <div className="navbar-inner">
         <Logo />
         <nav className="nav-links" aria-label="Primary navigation">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <NavLink key={item.to} className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} to={item.to}>
               {item.label}
             </NavLink>
@@ -66,7 +67,7 @@ export function Navbar() {
         </button>
       </div>
       <div className={`mobile-menu ${open ? 'is-open' : ''}`}>
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink key={item.to} className={({ isActive }) => `mobile-nav-link ${isActive ? 'active' : ''}`} to={item.to}>
             {item.label}
           </NavLink>
