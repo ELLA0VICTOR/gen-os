@@ -1466,6 +1466,9 @@
 
   .hero-proof {
     display: inline-flex;
+    position: static;
+    justify-self: center;
+    margin-top: calc(-1 * var(--space-2));
   }
 }
 
