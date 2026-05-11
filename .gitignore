@@ -13,6 +13,7 @@ dist-ssr
 __pycache__/
 *.pyc
 *.local
+frontend-design.md
 .env
 .env.*
 !.env.example
