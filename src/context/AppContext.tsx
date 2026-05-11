@@ -1,10 +1,5 @@
 import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react'
-import { auditEvents } from '../mock/audit'
-import { evidence } from '../mock/evidence'
-import { executions } from '../mock/executions'
-import { mandates } from '../mock/mandates'
-import type { AuditEvent, EvidenceItem, Execution, Mandate } from '../mock/types'
-import { vault } from '../mock/vault'
+import type { AuditEvent, EvidenceItem, Execution, Mandate, VaultState } from '../mock/types'
 import { connectBradburyWallet, parseGenToWei, waitForFinalized, writeEscrow, writeGenOS, type EthereumProvider } from '../lib/genlayer'
 import { fetchLiveSnapshot, type LiveContracts } from '../lib/liveState'
 
@@ -24,7 +19,7 @@ type AppState = {
   executions: Execution[]
   evidence: EvidenceItem[]
   auditEvents: AuditEvent[]
-  vault: typeof vault
+  vault: VaultState
   contracts: LiveContracts | null
   liveLoading: boolean
   liveError: string | null
@@ -44,7 +39,7 @@ type Action =
         executions: Execution[]
         evidence: EvidenceItem[]
         auditEvents: AuditEvent[]
-        vault: typeof vault
+        vault: VaultState
         contracts: LiveContracts
       }
     }
@@ -52,14 +47,23 @@ type Action =
   | { type: 'push_toast'; toast: Toast }
   | { type: 'dismiss_toast'; id: string }
 
+const emptyVault: VaultState = {
+  address: '',
+  escrowContract: '',
+  network: 'Bradbury',
+  balance: 0,
+  authorizedAgents: [],
+  transactions: [],
+}
+
 const initialState: AppState = {
   walletAddress: null,
   network: 'Bradbury',
-  mandates,
-  executions,
-  evidence,
-  auditEvents,
-  vault,
+  mandates: [],
+  executions: [],
+  evidence: [],
+  auditEvents: [],
+  vault: emptyVault,
   contracts: null,
   liveLoading: false,
   liveError: null,
