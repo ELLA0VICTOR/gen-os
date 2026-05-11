@@ -4,6 +4,26 @@ GEN//OS is a GenLayer-powered spend governance layer for AI agents, DAO operator
 
 The project lets a user define a natural-language mandate, submit an execution request with public evidence URLs, and have a GenLayer Intelligent Contract evaluate whether escrowed funds should be released, held, or escalated.
 
+In simple terms: GEN//OS is an on-chain operating system for paying work only after evidence proves the work satisfies the policy.
+
+## How It Works
+
+1. A creator writes a mandate in plain English, for example: "Release payment only if public evidence proves the repository was delivered and matches the agreed scope."
+2. A vendor or operator submits an execution request with an amount, recipient address, description, and public evidence URLs.
+3. The escrow contract accepts native GEN funding for that execution. The funding amount must exactly match the requested execution amount.
+4. GenLayer validators fetch the evidence URLs, compare the evidence against the mandate, score risk, and store an approved or rejected verdict on-chain.
+5. If approved, the escrow releases native GEN to the execution recipient. If rejected, the funded escrow can be refunded.
+
+This makes the product useful for AI-agent spend control, DAO grants, freelance milestones, public goods payouts, delivery verification, repository reviews, research tasks, content campaigns, and other evidence-based workflows.
+
+## Roles
+
+- Mandate creator: defines the policy, budget, risk threshold, and vault.
+- Execution requester: submits a claim that work was completed.
+- Recipient/vendor: receives funds if the claim is approved and escrow is released.
+- GenLayer validators: independently evaluate public evidence through AI-assisted consensus.
+- Escrow contract: holds and releases/refunds native GEN based on the GenOS verdict.
+
 ## Why GenLayer
 
 Normal smart contracts are good at deterministic accounting, but weak at interpreting messy real-world work evidence. GEN//OS uses GenLayer for the part that needs judgment:
@@ -25,6 +45,7 @@ Normal smart contracts are good at deterministic accounting, but weak at interpr
 - Browser-wallet signed writes for mandate creation, execution submission, escrow funding, evidence evaluation, and escrow release.
 - Native GEN amount model: a `1 GEN` execution requires exactly `1 GEN` escrow funding, then releases or refunds exactly that amount.
 - Bradbury-first network configuration.
+- Wallet-gated application routes. The landing page is public, while dashboard, mandates, executions, evidence, audit, and vault require a connected Bradbury wallet.
 
 ## GenLayer Contracts
 
@@ -164,6 +185,22 @@ Current validation result:
 {"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOSEscrow","methods":12,"view_methods":8,"write_methods":4,"ctor_params":2}}
 ```
 
+## Live Test Flow
+
+Use a wallet funded with Bradbury testnet GEN.
+
+1. Open the app and connect a Bradbury wallet.
+2. Go to `/mandates/new`.
+3. Create a mandate. For a small test, use `1 GEN` max per task and `5 GEN` total budget.
+4. Open the created mandate and submit an execution request.
+5. Use a recipient address that should receive payment, set amount to `1 GEN`, and include public evidence URLs. Raw GitHub URLs or public documentation pages work best because validators can read the actual content.
+6. Open the execution detail page and click `Fund Escrow`. The app funds exactly `1 GEN`.
+7. Click `Run GenLayer Evaluation` and wait for the verdict.
+8. If approved, click `Release Escrow`. The escrow sends the funded GEN to the recipient and records settlement on GenOS.
+9. If rejected, use `Refund Escrow` to return the funded GEN to the depositor.
+
+Expected clean-state behavior after the current deployment: zero mandates, zero executions, and zero escrow totals until a connected wallet creates new live Bradbury data.
+
 ## Bradbury Deployment Notes
 
 Use the GenLayer CLI or deploy scripts against Bradbury.
@@ -208,5 +245,6 @@ Write actions are signed by a connected browser wallet on Bradbury:
 - Fund native GEN escrow from an execution detail page. The escrow amount is locked to the execution amount.
 - Run GenLayer evidence evaluation from an execution detail page.
 - Release escrow after a GenOS-approved verdict.
+- Refund escrow after a rejected verdict.
 
 If no live mandates exist yet, the dashboard intentionally shows empty Bradbury state rather than pretending mock data is on-chain.
