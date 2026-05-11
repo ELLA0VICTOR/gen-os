@@ -33,7 +33,7 @@ export function Landing() {
               <strong>14</strong> Mandates Active
             </span>
             <span>
-              <strong>$48,200</strong> Locked in Escrow
+              <strong>48,200 GEN</strong> Governed
             </span>
             <span>
               <strong>99.2%</strong> Policy Compliance

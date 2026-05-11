@@ -14,7 +14,7 @@ export function Vault() {
       <div className="vault-hero">
         <div>
           <p className="eyebrow">Vault</p>
-          <h1>${currency(vault.balance)} USDC</h1>
+          <h1>{currency(vault.balance)} GEN</h1>
           <p>Escrow balance governed by mandate verdicts and settlement intents.</p>
         </div>
         <div className="topbar-actions">
@@ -36,7 +36,7 @@ export function Vault() {
             {vault.transactions.map((tx) => (
               <div className="transaction-row" key={tx.id}>
                 <Tag variant={tx.type === 'Release' ? 'success' : tx.type === 'Hold' ? 'warning' : 'default'}>{tx.type}</Tag>
-                <strong>${currency(tx.amount)}</strong>
+                <strong>{currency(tx.amount)} GEN</strong>
                 <AddressDisplay address={tx.counterparty} />
                 <AddressDisplay address={tx.txHash} />
                 <span>{readableDate(tx.time)}</span>

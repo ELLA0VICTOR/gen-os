@@ -8,7 +8,7 @@ export const mandates: Mandate[] = [
     operator: '0x8A340271fE75c6bAB65A36d6625Ff9A432fF8421',
     network: 'Bradbury',
     status: 'Active',
-    text: 'Release USDC only when the contractor ships the agreed frontend milestone, the linked pull request contains the requested implementation, Vercel preview is live, and the public CI check passes. Reject if the evidence is unrelated, incomplete, generated spam, or materially outside the scoped milestone.',
+    text: 'Release GEN only when the contractor ships the agreed frontend milestone, the linked pull request contains the requested implementation, Vercel preview is live, and the public CI check passes. Reject if the evidence is unrelated, incomplete, generated spam, or materially outside the scoped milestone.',
     rules: ['Require GitHub PR + CI pass', 'Require live preview URL', 'Reject unrelated evidence', 'Block sanctioned addresses'],
     riskThreshold: 2,
     maxPerTask: 1200,

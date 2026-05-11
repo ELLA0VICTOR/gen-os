@@ -87,8 +87,8 @@ export function Mandates() {
                 <span className="read-link">Read mandate -&gt;</span>
                 <div className="budget-block">
                   <div>
-                    <span>Spent: ${currency(mandate.spent)} USDC</span>
-                    <span>Budget: ${currency(mandate.totalBudget)} USDC</span>
+                    <span>Spent: {currency(mandate.spent)} GEN</span>
+                    <span>Budget: {currency(mandate.totalBudget)} GEN</span>
                   </div>
                   <div className="spend-bar">
                     <span className="spend-fill spend-safe" style={{ width: `${Math.min(100, spent)}%` }} />

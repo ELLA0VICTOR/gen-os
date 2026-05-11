@@ -76,7 +76,7 @@ export function Dashboard() {
                   <StatusDot tone={tone} label={execution.status} />
                   <span className="mono">{execution.id}</span>
                   <span>{mandate?.name}</span>
-                  <span>${currency(execution.amount)}</span>
+                  <span>{currency(execution.amount)} GEN</span>
                   <RiskMeter level={execution.risk} compact />
                   <span>{relativeTime(execution.submittedAt)}</span>
                 </Link>
@@ -99,7 +99,7 @@ export function Dashboard() {
                 <Link className="health-row" key={mandate.id} to={`/mandates/${mandate.id}`}>
                   <div>
                     <strong>{mandate.name}</strong>
-                    <span>${currency(mandate.totalBudget - mandate.spent)} remaining</span>
+                    <span>{currency(mandate.totalBudget - mandate.spent)} GEN remaining</span>
                   </div>
                   <div className="spend-bar" aria-label={`${Math.round(used)} percent spent`}>
                     <span className={`spend-fill spend-${barTone}`} style={{ width: `${Math.min(100, used)}%` }} />

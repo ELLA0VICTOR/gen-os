@@ -15,6 +15,7 @@ MAX_EVIDENCE_URLS = 6
 MAX_EVIDENCE_URL_CHARS = 220
 MAX_PAGE_CHARS = 5000
 MAX_AUDIT_EVENTS = 80
+WEI_PER_GEN = 1000000000000000000
 ERROR_EXPECTED = "[EXPECTED]"
 ERROR_EXTERNAL = "[EXTERNAL]"
 
@@ -401,9 +402,9 @@ Policy rules:
 {rules_text}
 
 Budget constraints:
-- Execution amount: {execution_amount} USDC
-- Max per execution: {max_per_execution} USDC
-- Remaining mandate budget: {remaining_budget} USDC
+- Execution amount: {execution_amount} GEN
+- Max per execution: {max_per_execution} GEN
+- Remaining mandate budget: {remaining_budget} GEN
 - Reject if risk level is greater than {risk_threshold}
 
 Execution request:
@@ -556,6 +557,18 @@ Respond with JSON only:
     def get_execution(self, execution_id: int) -> dict:
         execution_key = self._require_execution(execution_id)
         return self._execution_to_dict(self.executions[execution_key])
+
+    @gl.public.view
+    def get_execution_amount_wei(self, execution_id: int) -> int:
+        execution_key = self._require_execution(execution_id)
+        execution = self.executions[execution_key]
+        return int(execution.amount) * WEI_PER_GEN
+
+    @gl.public.view
+    def get_execution_recipient(self, execution_id: int) -> str:
+        execution_key = self._require_execution(execution_id)
+        execution = self.executions[execution_key]
+        return format(execution.recipient)
 
     @gl.public.view
     def get_mandate_executions(self, mandate_id: int) -> list:

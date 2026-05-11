@@ -28,6 +28,8 @@ def is_zero_address(address: Address) -> bool:
 class GenOSInterface:
     class View:
         def can_release(self, execution_id: int) -> bool: ...
+        def get_execution_amount_wei(self, execution_id: int) -> int: ...
+        def get_execution_recipient(self, execution_id: int) -> str: ...
 
     class Write:
         def record_settlement(self, execution_id: int, settlement_tx: str): ...
@@ -146,9 +148,17 @@ class GenOSEscrow(gl.Contract):
         if key in self.escrows:
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Escrow already exists for execution")
 
+        gen_os = GenOSInterface(self.gen_os_address)
+        expected_amount = int(gen_os.view().get_execution_amount_wei(execution_id))
+        if int(gl.message.value) != expected_amount:
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} Deposit must equal the execution amount in GEN")
+
         recipient = to_address(recipient_address)
         if is_zero_address(recipient):
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Recipient cannot be zero address")
+        expected_recipient = gen_os.view().get_execution_recipient(execution_id)
+        if format(recipient).lower() != expected_recipient.lower():
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} Recipient must match the execution recipient")
 
         amount = u256(int(gl.message.value))
         escrow = EscrowRecord(

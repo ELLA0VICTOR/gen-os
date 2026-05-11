@@ -1,6 +1,15 @@
 import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react'
 import type { AuditEvent, EscrowRecord, EvidenceItem, Execution, Mandate, VaultState } from '../mock/types'
-import { connectBradburyWallet, parseGenToWei, waitForAccepted, writeEscrow, writeGenOS, type EthereumProvider } from '../lib/genlayer'
+import {
+  GENOS_CONTRACT_ADDRESS,
+  GENOS_ESCROW_ADDRESS,
+  connectBradburyWallet,
+  parseGenToWei,
+  waitForAccepted,
+  writeEscrow,
+  writeGenOS,
+  type EthereumProvider,
+} from '../lib/genlayer'
 import { fetchLiveSnapshot, type LiveContracts } from '../lib/liveState'
 
 type ToastTone = 'success' | 'error' | 'warning' | 'info'
@@ -92,7 +101,18 @@ function readPersistedWallet() {
 function readPersistedSnapshot(): PersistedSnapshot | null {
   try {
     const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as PersistedSnapshot) : null
+    if (!raw) return null
+
+    const snapshot = JSON.parse(raw) as PersistedSnapshot
+    const cacheMatchesContracts =
+      snapshot.contracts?.genosAddress === GENOS_CONTRACT_ADDRESS && snapshot.contracts?.escrowAddress === GENOS_ESCROW_ADDRESS
+
+    if (!cacheMatchesContracts) {
+      window.localStorage.removeItem(SNAPSHOT_STORAGE_KEY)
+      return null
+    }
+
+    return snapshot
   } catch {
     return null
   }
@@ -219,6 +239,12 @@ function formatError(error: unknown) {
   return String(error)
 }
 
+function requireWholeGenAmount(value: number, label: string) {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a whole GEN amount greater than zero`)
+  }
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const providerRef = useRef<EthereumProvider | null>(null)
@@ -302,6 +328,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function createMandate(input: CreateMandateInput) {
+    requireWholeGenAmount(input.maxPerExecution, 'Max per-task amount')
+    requireWholeGenAmount(input.totalBudget, 'Total mandate budget')
+
     const { account, provider } = await requireWallet()
     const hash = await writeGenOS(account, provider, 'create_mandate', [
       input.operatorAddress,
@@ -322,6 +351,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function submitExecution(input: SubmitExecutionInput) {
+    requireWholeGenAmount(input.amount, 'Execution amount')
+
     const { account, provider } = await requireWallet()
     const hash = await writeGenOS(account, provider, 'submit_execution', [
       input.mandateId,

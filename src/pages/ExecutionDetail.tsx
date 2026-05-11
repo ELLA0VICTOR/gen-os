@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Check, Clock, ExternalLink, Loader, ShieldCheck, ShieldX } from '../components/icons/Icons'
+import { Clock, ExternalLink, Loader, ShieldCheck, ShieldX } from '../components/icons/Icons'
 import { AddressDisplay } from '../components/ui/AddressDisplay'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -12,9 +12,8 @@ import { currency, readableDate } from '../utils/format'
 
 export function ExecutionDetail() {
   const { id } = useParams()
-  const { evaluateExecution, fundExecution, releaseExecution, state, notify } = useAppContext()
-  const [busyAction, setBusyAction] = useState<'fund' | 'evaluate' | 'release' | null>(null)
-  const [fundAmount, setFundAmount] = useState('0.01')
+  const { evaluateExecution, fundExecution, refundExecution, releaseExecution, state, notify } = useAppContext()
+  const [busyAction, setBusyAction] = useState<'fund' | 'evaluate' | 'release' | 'refund' | null>(null)
   const execution = state.executions.find((item) => item.id === id) ?? state.executions[0]
 
   if (!execution) {
@@ -39,6 +38,8 @@ export function ExecutionDetail() {
   const pending = execution.status === 'Pending'
   const evaluationRunning = busyAction === 'evaluate'
   const hasFundedEscrow = escrow?.status === 'funded'
+  const canReleaseEscrow = approved && hasFundedEscrow
+  const canRefundEscrow = rejected && hasFundedEscrow
   const executionNumericId = Number(execution.id.replace('execution-', ''))
 
   async function handleEvaluate() {
@@ -64,7 +65,7 @@ export function ExecutionDetail() {
       await fundExecution({
         executionId: executionNumericId,
         recipientAddress: execution.vendor,
-        amountGen: fundAmount,
+        amountGen: String(execution.amount),
         note: `Escrow for ${execution.id}`,
       })
     } catch (error) {
@@ -94,6 +95,22 @@ export function ExecutionDetail() {
     }
   }
 
+  async function handleRefund() {
+    setBusyAction('refund')
+
+    try {
+      await refundExecution(executionNumericId, `Refund rejected ${execution.id}`)
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: 'Refund failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
   return (
     <section className="page">
       <div className="execution-detail-grid">
@@ -111,7 +128,7 @@ export function ExecutionDetail() {
               <span>Vendor</span>
               <AddressDisplay address={execution.vendor} />
               <span>Amount</span>
-              <strong>${currency(execution.amount)} USDC</strong>
+              <strong>{currency(execution.amount)} GEN</strong>
               <span>Submitted</span>
               <strong>{readableDate(execution.submittedAt)}</strong>
             </div>
@@ -169,28 +186,18 @@ export function ExecutionDetail() {
               {escrow ? (
                 <>
                   <strong>{escrow.status.toUpperCase()}</strong>
-                  <p>
-                    {escrow.amount} GEN locked for {execution.id}
-                  </p>
+                  <p>{escrow.amount} GEN</p>
                 </>
               ) : (
                 <>
                   <strong>NOT FUNDED</strong>
-                  <p>Fund escrow before release. Evaluation can still run, but release needs funded escrow.</p>
+                  <p>Fund before release.</p>
                 </>
               )}
             </div>
-            <div className="checklist">
-              {execution.checks.map((check) => (
-                <span key={check.label} className={check.passed ? 'is-pass' : 'is-fail'}>
-                  {check.passed ? <Check size={15} /> : <ShieldX size={15} />}
-                  {check.label}
-                </span>
-              ))}
-            </div>
             {execution.status !== 'Released' && !hasFundedEscrow && (
               <div className="fund-block">
-                <Input label="Escrow amount (GEN)" value={fundAmount} onChange={(event) => setFundAmount(event.target.value)} />
+                <Input label="Escrow amount (GEN)" value={String(execution.amount)} readOnly />
                 <Button variant="secondary" disabled={busyAction !== null} onClick={handleFund}>
                   {busyAction === 'fund' ? 'Funding...' : 'Fund Escrow'}
                 </Button>
@@ -201,14 +208,16 @@ export function ExecutionDetail() {
                 {evaluationRunning ? 'Evaluating...' : 'Run GenLayer Evaluation'}
               </Button>
             )}
-            {approved && execution.status !== 'Released' && (
+            {canReleaseEscrow && (
               <Button variant="primary" disabled={busyAction !== null} onClick={handleRelease}>
                 {busyAction === 'release' ? 'Releasing...' : 'Release Escrow'}
               </Button>
             )}
-            <Button variant="danger" onClick={() => notify({ tone: 'warning', title: 'Escalation staged', message: 'Manual override flow opened.' })}>
-              Override / Escalate
-            </Button>
+            {canRefundEscrow && (
+              <Button variant="danger" disabled={busyAction !== null} onClick={handleRefund}>
+                {busyAction === 'refund' ? 'Refunding...' : 'Refund Escrow'}
+              </Button>
+            )}
           </Card>
         </aside>
       </div>

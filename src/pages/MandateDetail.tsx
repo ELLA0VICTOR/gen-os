@@ -17,9 +17,9 @@ export function MandateDetail() {
   const [submitting, setSubmitting] = useState(false)
   const [executionForm, setExecutionForm] = useState({
     recipient: '0xa75dcA59ED62725D85B16458f28bD4d61D48E534',
-    amount: '250',
+    amount: '1',
     description: 'The agent completed the requested implementation and published a public proof link for review.',
-    evidenceUrls: 'https://github.com/genlayerlabs/genlayer-js',
+    evidenceUrls: 'https://raw.githubusercontent.com/genlayerlabs/genlayer-js/main/README.md',
   })
   const mandate = state.mandates.find((item) => item.id === id) ?? state.mandates[0]
 
@@ -112,7 +112,7 @@ export function MandateDetail() {
                 <Link className="feed-row" key={execution.id} to={`/executions/${execution.id}`}>
                   <span className="mono">{execution.id}</span>
                   <span>{execution.status}</span>
-                  <span>${currency(execution.amount)}</span>
+                  <span>{currency(execution.amount)} GEN</span>
                   <RiskMeter level={execution.risk} compact />
                 </Link>
               ))}
@@ -145,8 +145,8 @@ export function MandateDetail() {
             </div>
             <div className="budget-block">
               <div>
-                <span>${currency(mandate.spent)} spent</span>
-                <span>${currency(mandate.totalBudget)} cap</span>
+                <span>{currency(mandate.spent)} GEN spent</span>
+                <span>{currency(mandate.totalBudget)} GEN cap</span>
               </div>
               <div className="spend-bar">
                 <span className="spend-fill spend-safe" style={{ width: `${Math.min(100, spent)}%` }} />
@@ -173,7 +173,15 @@ export function MandateDetail() {
                 value={executionForm.recipient}
                 onChange={(event) => updateExecutionForm('recipient', event.target.value)}
               />
-              <Input label="Amount" value={executionForm.amount} onChange={(event) => updateExecutionForm('amount', event.target.value)} />
+              <Input
+                label="Amount (GEN)"
+                hint="Whole GEN only. The escrow must be funded with exactly this amount."
+                min="1"
+                step="1"
+                type="number"
+                value={executionForm.amount}
+                onChange={(event) => updateExecutionForm('amount', event.target.value)}
+              />
               <Textarea
                 label="Description"
                 rows={5}

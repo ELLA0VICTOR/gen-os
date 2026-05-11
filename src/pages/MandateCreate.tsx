@@ -49,8 +49,8 @@ export function MandateCreate() {
     network: 'Bradbury',
     text: 'Release payment only after public evidence proves the requested work was completed, matches the agreed scope, and belongs to the approved recipient. Reject private, stale, unrelated, unverifiable, or ambiguous evidence.',
     rulesText: policyOptions.slice(0, 4).join('\n'),
-    maxPerTask: '1000',
-    totalBudget: '6000',
+    maxPerTask: '1',
+    totalBudget: '5',
     expiry: toDateTimeLocal(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)),
   })
 
@@ -161,8 +161,24 @@ export function MandateCreate() {
         {step === 2 && (
           <div className="form-step">
             <h1>Budget and vault</h1>
-            <Input label="Max per-task amount" value={form.maxPerTask} onChange={(event) => update('maxPerTask', event.target.value)} />
-            <Input label="Total mandate budget" value={form.totalBudget} onChange={(event) => update('totalBudget', event.target.value)} />
+            <Input
+              label="Max per-task amount (GEN)"
+              hint="Whole GEN only. This is the maximum escrow amount a single execution can request."
+              min="1"
+              step="1"
+              type="number"
+              value={form.maxPerTask}
+              onChange={(event) => update('maxPerTask', event.target.value)}
+            />
+            <Input
+              label="Total mandate budget (GEN)"
+              hint="Whole GEN only. Released executions spend down this mandate budget."
+              min="1"
+              step="1"
+              type="number"
+              value={form.totalBudget}
+              onChange={(event) => update('totalBudget', event.target.value)}
+            />
             <Input
               label="Mandate expiry"
               type="datetime-local"
@@ -187,7 +203,7 @@ export function MandateCreate() {
               <span>Operator</span>
               <strong className="mono">{form.operator}</strong>
               <span>Budget</span>
-              <strong>${form.totalBudget} USDC</strong>
+              <strong>{form.totalBudget} GEN</strong>
               <span>Risk Threshold</span>
               <RiskMeter level={riskThreshold} compact />
               <span>Expiry</span>

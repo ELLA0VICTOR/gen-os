@@ -64,7 +64,7 @@ export function Executions() {
               <span className="mono">{execution.id}</span>
               <Link to={`/mandates/${mandate?.id}`}>{mandate?.name}</Link>
               <AddressDisplay address={execution.vendor} />
-              <span>${currency(execution.amount)}</span>
+              <span>{currency(execution.amount)} GEN</span>
               <RiskMeter level={execution.risk} compact />
               <span>{relativeTime(execution.submittedAt)}</span>
               <Link className="read-link" to={`/executions/${execution.id}`}>

@@ -23,6 +23,7 @@ Normal smart contracts are good at deterministic accounting, but weak at interpr
 - GenLayer Intelligent Contract in `contracts/gen_os.py`.
 - Live Bradbury reads through `genlayer-js`.
 - Browser-wallet signed writes for mandate creation, execution submission, escrow funding, evidence evaluation, and escrow release.
+- Native GEN amount model: a `1 GEN` execution requires exactly `1 GEN` escrow funding, then releases or refunds exactly that amount.
 - Bradbury-first network configuration.
 
 ## GenLayer Contracts
@@ -54,6 +55,8 @@ Read methods:
 - `get_execution_count()`
 - `get_mandate(mandate_id)`
 - `get_execution(execution_id)`
+- `get_execution_amount_wei(execution_id)`
+- `get_execution_recipient(execution_id)`
 - `get_mandate_executions(mandate_id)`
 - `can_release(execution_id)`
 - `get_audit_log()`
@@ -118,16 +121,16 @@ GenLayer docs currently list Bradbury as the production-like testnet for real AI
 Live Bradbury deployment:
 
 ```text
-GenOS:       0xf7b20D88fdE3581058eb04A21C959120EA7Ed7Cf
-GenOSEscrow: 0x706ea41ee7A9FF022671E5B5B5E99F2E7e20e6c8
+GenOS:       0x9637c249386e4b0b7e66c415Bb1b5619c6a55ce6
+GenOSEscrow: 0xA8bc9809120BA45696b0e16F08dC13ff96790449
 Admin:       0x35b27B6Fc827De934Fd3E755BcCc0Db5a42e002d
 ```
 
 Frontend environment:
 
 ```text
-VITE_GENOS_CONTRACT_ADDRESS=0xf7b20D88fdE3581058eb04A21C959120EA7Ed7Cf
-VITE_GENOS_ESCROW_ADDRESS=0x706ea41ee7A9FF022671E5B5B5E99F2E7e20e6c8
+VITE_GENOS_CONTRACT_ADDRESS=0x9637c249386e4b0b7e66c415Bb1b5619c6a55ce6
+VITE_GENOS_ESCROW_ADDRESS=0xA8bc9809120BA45696b0e16F08dC13ff96790449
 VITE_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
 VITE_GENLAYER_CHAIN_RPC_URL=https://rpc.testnet-chain.genlayer.com
 VITE_GENLAYER_CHAIN_ID=4221
@@ -157,7 +160,7 @@ genvm-lint check contracts/gen_os.py --json
 Current validation result:
 
 ```json
-{"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOS","methods":17,"view_methods":10,"write_methods":7,"ctor_params":2}}
+{"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOS","methods":19,"view_methods":12,"write_methods":7,"ctor_params":2}}
 {"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOSEscrow","methods":12,"view_methods":8,"write_methods":4,"ctor_params":2}}
 ```
 
@@ -202,7 +205,7 @@ Write actions are signed by a connected browser wallet on Bradbury:
 
 - Create a mandate from `/mandates/new`.
 - Submit an execution from a mandate detail page.
-- Fund native GEN escrow from an execution detail page.
+- Fund native GEN escrow from an execution detail page. The escrow amount is locked to the execution amount.
 - Run GenLayer evidence evaluation from an execution detail page.
 - Release escrow after a GenOS-approved verdict.
 
