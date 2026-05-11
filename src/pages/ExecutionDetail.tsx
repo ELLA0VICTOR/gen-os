@@ -33,8 +33,12 @@ export function ExecutionDetail() {
 
   const mandate = state.mandates.find((item) => item.id === execution.mandateId) ?? state.mandates[0]
   const evidence = state.evidence.filter((item) => item.executionId === execution.id)
+  const escrow = state.escrows.find((item) => item.executionId === execution.id)
   const approved = execution.status === 'Approved' || execution.status === 'Released'
   const rejected = execution.status === 'Rejected'
+  const pending = execution.status === 'Pending'
+  const evaluationRunning = busyAction === 'evaluate'
+  const hasFundedEscrow = escrow?.status === 'funded'
   const executionNumericId = Number(execution.id.replace('execution-', ''))
 
   async function handleEvaluate() {
@@ -151,8 +155,8 @@ export function ExecutionDetail() {
               <span className="eyebrow">GenLayer Verdict</span>
             </div>
             <div className={`verdict-display ${approved ? 'is-approved' : rejected ? 'is-rejected' : 'is-pending'}`}>
-              {approved ? <ShieldCheck size={48} /> : rejected ? <ShieldX size={48} /> : <Loader size={48} />}
-              <strong>{approved ? 'APPROVED' : rejected ? 'REJECTED' : 'EVALUATING...'}</strong>
+              {approved ? <ShieldCheck size={48} /> : rejected ? <ShieldX size={48} /> : evaluationRunning ? <Loader size={48} /> : <Clock size={48} />}
+              <strong>{approved ? 'APPROVED' : rejected ? 'REJECTED' : evaluationRunning ? 'EVALUATING...' : 'AWAITING EVALUATION'}</strong>
             </div>
             <RiskMeter level={execution.risk} />
             <div className="reason-block">
@@ -160,6 +164,22 @@ export function ExecutionDetail() {
               <p>{execution.verdict}</p>
             </div>
             <Tag variant="lilac">{execution.requiredAction}</Tag>
+            <div className="escrow-status-card">
+              <span className="field-label">Escrow Status</span>
+              {escrow ? (
+                <>
+                  <strong>{escrow.status.toUpperCase()}</strong>
+                  <p>
+                    {escrow.amount} GEN locked for {execution.id}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <strong>NOT FUNDED</strong>
+                  <p>Fund escrow before release. Evaluation can still run, but release needs funded escrow.</p>
+                </>
+              )}
+            </div>
             <div className="checklist">
               {execution.checks.map((check) => (
                 <span key={check.label} className={check.passed ? 'is-pass' : 'is-fail'}>
@@ -168,7 +188,7 @@ export function ExecutionDetail() {
                 </span>
               ))}
             </div>
-            {execution.status !== 'Released' && (
+            {execution.status !== 'Released' && !hasFundedEscrow && (
               <div className="fund-block">
                 <Input label="Escrow amount (GEN)" value={fundAmount} onChange={(event) => setFundAmount(event.target.value)} />
                 <Button variant="secondary" disabled={busyAction !== null} onClick={handleFund}>
@@ -176,9 +196,9 @@ export function ExecutionDetail() {
                 </Button>
               </div>
             )}
-            {execution.status === 'Pending' && (
+            {pending && (
               <Button variant="primary" disabled={busyAction !== null} onClick={handleEvaluate}>
-                {busyAction === 'evaluate' ? 'Evaluating...' : 'Run GenLayer Evaluation'}
+                {evaluationRunning ? 'Evaluating...' : 'Run GenLayer Evaluation'}
               </Button>
             )}
             {approved && execution.status !== 'Released' && (

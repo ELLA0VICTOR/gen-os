@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Clock, Execution, Plus } from '../components/icons/Icons'
 import { AddressDisplay } from '../components/ui/AddressDisplay'
+import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 import { Tag } from '../components/ui/Tag'
@@ -11,7 +12,7 @@ import { currency, relativeTime } from '../utils/format'
 const filters = ['All', 'Active', 'Paused', 'Completed', 'Expired']
 
 export function Mandates() {
-  const { state } = useAppContext()
+  const { refreshLiveState, state } = useAppContext()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('All')
 
@@ -35,6 +36,28 @@ export function Mandates() {
       </div>
 
       <div className="filter-panel">
+        <Card className="live-panel">
+          <div>
+            <span className="eyebrow">Bradbury Mandates</span>
+            <strong>
+              {state.liveError
+                ? 'Live read failed'
+                : state.liveLoading
+                  ? 'Syncing mandates...'
+                  : `${state.contracts?.mandateCount ?? state.mandates.length} on-chain mandates`}
+            </strong>
+            <p>
+              {state.liveError
+                ? state.liveError
+                : state.liveSyncedAt
+                  ? `Last synced ${relativeTime(state.liveSyncedAt)} from accepted Bradbury state.`
+                  : 'Waiting for the first live sync.'}
+            </p>
+          </div>
+          <Button variant="secondary" disabled={state.liveLoading} onClick={refreshLiveState}>
+            {state.liveLoading ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </Card>
         <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search mandates..." />
         <div className="filter-tags">
           {filters.map((item) => (

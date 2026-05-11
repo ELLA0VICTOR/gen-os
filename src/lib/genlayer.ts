@@ -6,11 +6,33 @@ export const GENOS_CONTRACT_ADDRESS = import.meta.env.VITE_GENOS_CONTRACT_ADDRES
 export const GENOS_ESCROW_ADDRESS = import.meta.env.VITE_GENOS_ESCROW_ADDRESS || ''
 export const GENLAYER_RPC_URL = import.meta.env.VITE_GENLAYER_RPC_URL || 'https://rpc-bradbury.genlayer.com'
 export const BRADBURY_NETWORK_NAME = 'testnetBradbury'
+export const BRADBURY_CHAIN_ID_HEX = '0x107d'
+
+const BRADBURY_CHAIN_PARAMS = {
+  chainId: BRADBURY_CHAIN_ID_HEX,
+  chainName: 'GenLayer Bradbury Testnet',
+  rpcUrls: ['https://rpc-bradbury.genlayer.com'],
+  nativeCurrency: {
+    name: 'GEN Token',
+    symbol: 'GEN',
+    decimals: 18,
+  },
+  blockExplorerUrls: ['https://explorer-bradbury.genlayer.com'],
+}
 
 export type EthereumProvider = {
   request: (args: { method: string; params?: unknown[] | object }) => Promise<unknown>
   on?: (event: string, callback: (...args: unknown[]) => void) => void
   removeListener?: (event: string, callback: (...args: unknown[]) => void) => void
+}
+
+function walletErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    return String(record.message ?? record.shortMessage ?? record.details ?? record.reason ?? JSON.stringify(record))
+  }
+  return String(error)
 }
 
 declare global {
@@ -85,6 +107,25 @@ export function parseGenToWei(value: string) {
   return total
 }
 
+async function requestBradburyNetwork(provider: EthereumProvider) {
+  try {
+    await provider.request({
+      method: 'wallet_addEthereumChain',
+      params: [BRADBURY_CHAIN_PARAMS],
+    })
+  } catch (error) {
+    const message = walletErrorMessage(error)
+    if (!message.toLowerCase().includes('already') && !message.toLowerCase().includes('exists')) {
+      console.warn('Unable to add Bradbury network automatically:', message)
+    }
+  }
+
+  await provider.request({
+    method: 'wallet_switchEthereumChain',
+    params: [{ chainId: BRADBURY_CHAIN_ID_HEX }],
+  })
+}
+
 export async function readGenOS<T = unknown>(functionName: string, args: unknown[] = []) {
   ensureContractsConfigured()
   const result = await getReadClient().readContract({
@@ -113,14 +154,14 @@ export async function connectBradburyWallet() {
     throw new Error('No browser wallet found. Install MetaMask or another EIP-1193 wallet.')
   }
 
+  await requestBradburyNetwork(provider)
+
   const accounts = (await provider.request({ method: 'eth_requestAccounts' })) as string[]
   const account = accounts?.[0] as `0x${string}` | undefined
   if (!account) {
     throw new Error('Wallet did not return an address')
   }
 
-  const client = getWriteClient(account, provider)
-  await client.connect(BRADBURY_NETWORK_NAME)
   return { account, provider }
 }
 
@@ -158,10 +199,10 @@ export async function writeEscrow(
   })
 }
 
-export async function waitForFinalized(hash: `0x${string}`) {
+export async function waitForAccepted(hash: `0x${string}`) {
   const receipt = await getReadClient().waitForTransactionReceipt({
     hash,
-    status: TransactionStatus.FINALIZED,
+    status: TransactionStatus.ACCEPTED,
     fullTransaction: false,
   })
 

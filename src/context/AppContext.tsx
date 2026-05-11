@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from 'react'
-import type { AuditEvent, EvidenceItem, Execution, Mandate, VaultState } from '../mock/types'
-import { connectBradburyWallet, parseGenToWei, waitForFinalized, writeEscrow, writeGenOS, type EthereumProvider } from '../lib/genlayer'
+import type { AuditEvent, EscrowRecord, EvidenceItem, Execution, Mandate, VaultState } from '../mock/types'
+import { connectBradburyWallet, parseGenToWei, waitForAccepted, writeEscrow, writeGenOS, type EthereumProvider } from '../lib/genlayer'
 import { fetchLiveSnapshot, type LiveContracts } from '../lib/liveState'
 
 type ToastTone = 'success' | 'error' | 'warning' | 'info'
@@ -18,6 +18,7 @@ type AppState = {
   mandates: Mandate[]
   executions: Execution[]
   evidence: EvidenceItem[]
+  escrows: EscrowRecord[]
   auditEvents: AuditEvent[]
   vault: VaultState
   contracts: LiveContracts | null
@@ -27,9 +28,13 @@ type AppState = {
   toasts: Toast[]
 }
 
+type PersistedSnapshot = Pick<AppState, 'contracts' | 'mandates' | 'executions' | 'evidence' | 'escrows' | 'auditEvents' | 'vault' | 'liveSyncedAt'>
+
 type Action =
   | { type: 'connect_wallet'; address: string }
   | { type: 'disconnect_wallet' }
+  | { type: 'restore_wallet'; address: string }
+  | { type: 'restore_live_snapshot'; snapshot: PersistedSnapshot }
   | { type: 'add_mandate'; mandate: Mandate }
   | { type: 'live_loading' }
   | {
@@ -38,6 +43,7 @@ type Action =
         mandates: Mandate[]
         executions: Execution[]
         evidence: EvidenceItem[]
+        escrows: EscrowRecord[]
         auditEvents: AuditEvent[]
         vault: VaultState
         contracts: LiveContracts
@@ -56,12 +62,16 @@ const emptyVault: VaultState = {
   transactions: [],
 }
 
+const WALLET_STORAGE_KEY = 'genos.walletAddress'
+const SNAPSHOT_STORAGE_KEY = 'genos.liveSnapshot'
+
 const initialState: AppState = {
   walletAddress: null,
   network: 'Bradbury',
   mandates: [],
   executions: [],
   evidence: [],
+  escrows: [],
   auditEvents: [],
   vault: emptyVault,
   contracts: null,
@@ -71,9 +81,40 @@ const initialState: AppState = {
   toasts: [],
 }
 
+function readPersistedWallet() {
+  try {
+    return window.localStorage.getItem(WALLET_STORAGE_KEY)
+  } catch {
+    return null
+  }
+}
+
+function readPersistedSnapshot(): PersistedSnapshot | null {
+  try {
+    const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY)
+    return raw ? (JSON.parse(raw) as PersistedSnapshot) : null
+  } catch {
+    return null
+  }
+}
+
+function persistSnapshot(state: PersistedSnapshot) {
+  try {
+    window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // Cache is a convenience only; live reads are still the source of truth.
+  }
+}
+
+function getSnapshotSyncedAt() {
+  return new Date().toISOString()
+}
+
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
     case 'connect_wallet':
+      return { ...state, walletAddress: action.address }
+    case 'restore_wallet':
       return { ...state, walletAddress: action.address }
     case 'disconnect_wallet':
       return { ...state, walletAddress: null }
@@ -82,17 +123,36 @@ function reducer(state: AppState, action: Action): AppState {
     case 'live_loading':
       return { ...state, liveLoading: true, liveError: null }
     case 'live_loaded':
-      return {
-        ...state,
-        liveLoading: false,
-        liveError: null,
-        liveSyncedAt: new Date().toISOString(),
+      {
+        const liveSyncedAt = getSnapshotSyncedAt()
+      persistSnapshot({
         contracts: action.snapshot.contracts,
         mandates: action.snapshot.mandates,
         executions: action.snapshot.executions,
         evidence: action.snapshot.evidence,
+        escrows: action.snapshot.escrows,
         auditEvents: action.snapshot.auditEvents,
         vault: action.snapshot.vault,
+        liveSyncedAt,
+      })
+      return {
+        ...state,
+        liveLoading: false,
+        liveError: null,
+        liveSyncedAt,
+        contracts: action.snapshot.contracts,
+        mandates: action.snapshot.mandates,
+        executions: action.snapshot.executions,
+        evidence: action.snapshot.evidence,
+        escrows: action.snapshot.escrows,
+        auditEvents: action.snapshot.auditEvents,
+        vault: action.snapshot.vault,
+      }
+      }
+    case 'restore_live_snapshot':
+      return {
+        ...state,
+        ...action.snapshot,
       }
     case 'live_failed':
       return { ...state, liveLoading: false, liveError: action.message }
@@ -116,6 +176,7 @@ type AppContextValue = {
   fundExecution: (input: FundExecutionInput) => Promise<void>
   evaluateExecution: (executionId: number) => Promise<void>
   releaseExecution: (executionId: number) => Promise<void>
+  refundExecution: (executionId: number, reason: string) => Promise<void>
   notify: (toast: Omit<Toast, 'id'>) => void
   dismissToast: (id: string) => void
 }
@@ -150,14 +211,30 @@ export type FundExecutionInput = {
 }
 
 function formatError(error: unknown) {
-  return error instanceof Error ? error.message : String(error)
+  if (error instanceof Error) return error.message
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>
+    return String(record.message ?? record.shortMessage ?? record.details ?? record.reason ?? JSON.stringify(record))
+  }
+  return String(error)
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const providerRef = useRef<EthereumProvider | null>(null)
+  const refreshInFlightRef = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
+    const persistedWallet = readPersistedWallet()
+    if (persistedWallet) {
+      dispatch({ type: 'restore_wallet', address: persistedWallet })
+    }
+
+    const persistedSnapshot = readPersistedSnapshot()
+    if (persistedSnapshot) {
+      dispatch({ type: 'restore_live_snapshot', snapshot: persistedSnapshot })
+    }
+
     void refreshLiveState()
   }, [])
 
@@ -168,20 +245,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshLiveState() {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current
+    }
+
     dispatch({ type: 'live_loading' })
 
-    try {
-      const snapshot = await fetchLiveSnapshot()
-      dispatch({ type: 'live_loaded', snapshot })
-    } catch (error) {
-      dispatch({ type: 'live_failed', message: formatError(error) })
-    }
+    refreshInFlightRef.current = (async () => {
+      try {
+        const snapshot = await fetchLiveSnapshot()
+        dispatch({ type: 'live_loaded', snapshot })
+      } catch (error) {
+        dispatch({ type: 'live_failed', message: formatError(error) })
+      } finally {
+        refreshInFlightRef.current = null
+      }
+    })()
+
+    return refreshInFlightRef.current
   }
 
   async function connectWallet() {
     try {
       const { account, provider } = await connectBradburyWallet()
       providerRef.current = provider
+      window.localStorage.setItem(WALLET_STORAGE_KEY, account)
       dispatch({ type: 'connect_wallet', address: account })
       notify({ tone: 'success', title: 'Wallet connected', message: 'Bradbury wallet is ready for signed transactions.' })
     } catch (error) {
@@ -191,6 +279,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   function disconnectWallet() {
     providerRef.current = null
+    window.localStorage.removeItem(WALLET_STORAGE_KEY)
     dispatch({ type: 'disconnect_wallet' })
     notify({ tone: 'info', title: 'Wallet disconnected' })
   }
@@ -207,6 +296,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const { account, provider } = await connectBradburyWallet()
     providerRef.current = provider
+    window.localStorage.setItem(WALLET_STORAGE_KEY, account)
     dispatch({ type: 'connect_wallet', address: account })
     return { account, provider }
   }
@@ -226,7 +316,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ])
 
     notify({ tone: 'info', title: 'Mandate submitted', message: String(hash) })
-    await waitForFinalized(hash as `0x${string}`)
+    await waitForAccepted(hash as `0x${string}`)
     await refreshLiveState()
     notify({ tone: 'success', title: 'Mandate live on Bradbury' })
   }
@@ -242,7 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ])
 
     notify({ tone: 'info', title: 'Execution submitted', message: String(hash) })
-    await waitForFinalized(hash as `0x${string}`)
+    await waitForAccepted(hash as `0x${string}`)
     await refreshLiveState()
     notify({ tone: 'success', title: 'Execution queued for evaluation' })
   }
@@ -258,7 +348,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     )
 
     notify({ tone: 'info', title: 'Escrow funding submitted', message: String(hash) })
-    await waitForFinalized(hash as `0x${string}`)
+    await waitForAccepted(hash as `0x${string}`)
     await refreshLiveState()
     notify({ tone: 'success', title: 'Escrow funded on Bradbury' })
   }
@@ -268,7 +358,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const hash = await writeGenOS(account, provider, 'evaluate_execution', [executionId])
 
     notify({ tone: 'info', title: 'GenLayer evaluation started', message: String(hash) })
-    await waitForFinalized(hash as `0x${string}`)
+    await waitForAccepted(hash as `0x${string}`)
     await refreshLiveState()
     notify({ tone: 'success', title: 'Execution verdict finalized' })
   }
@@ -278,9 +368,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const hash = await writeEscrow(account, provider, 'release_execution', [executionId])
 
     notify({ tone: 'info', title: 'Release submitted', message: String(hash) })
-    await waitForFinalized(hash as `0x${string}`)
+    await waitForAccepted(hash as `0x${string}`)
     await refreshLiveState()
     notify({ tone: 'success', title: 'Escrow release finalized' })
+  }
+
+  async function refundExecution(executionId: number, reason: string) {
+    const { account, provider } = await requireWallet()
+    const hash = await writeEscrow(account, provider, 'refund_execution', [executionId, reason])
+
+    notify({ tone: 'info', title: 'Refund submitted', message: String(hash) })
+    await waitForAccepted(hash as `0x${string}`)
+    await refreshLiveState()
+    notify({ tone: 'success', title: 'Escrow refund finalized' })
   }
 
   return (
@@ -296,6 +396,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         fundExecution,
         evaluateExecution,
         releaseExecution,
+        refundExecution,
         notify,
         dismissToast: (id) => dispatch({ type: 'dismiss_toast', id }),
       }}

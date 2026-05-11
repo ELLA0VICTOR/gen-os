@@ -1,5 +1,5 @@
 import { GENOS_CONTRACT_ADDRESS, GENOS_ESCROW_ADDRESS, readEscrow, readGenOS } from './genlayer'
-import type { AuditEvent, EvidenceItem, Execution, ExecutionStatus, Mandate, MandateStatus, VaultState } from '../mock/types'
+import type { AuditEvent, EscrowRecord, EvidenceItem, Execution, ExecutionStatus, Mandate, MandateStatus, VaultState } from '../mock/types'
 
 type RawFullState = {
   admin: string
@@ -70,6 +70,24 @@ type RawEscrowLog = {
   details: string
 }
 
+type RawEscrow = {
+  execution_id: number
+  depositor: string
+  recipient: string
+  amount: number | string
+  status: string
+  created_at: string
+  released_at: string
+  refunded_at: string
+  note: string
+}
+
+const REQUEST_DELAY_MS = 350
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 export type LiveContracts = {
   genosAddress: string
   escrowAddress: string
@@ -86,6 +104,7 @@ export type LiveSnapshot = {
   executions: Execution[]
   evidence: EvidenceItem[]
   auditEvents: AuditEvent[]
+  escrows: EscrowRecord[]
   vault: VaultState
 }
 
@@ -217,13 +236,30 @@ function toVault(totals: RawEscrowTotals, logs: RawEscrowLog[], contracts: LiveC
   }
 }
 
+function toEscrow(raw: RawEscrow): EscrowRecord {
+  return {
+    executionId: `execution-${raw.execution_id}`,
+    depositor: raw.depositor,
+    recipient: raw.recipient,
+    amount: fromWei(raw.amount),
+    status: raw.status,
+    createdAt: raw.created_at,
+    releasedAt: raw.released_at,
+    refundedAt: raw.refunded_at,
+    note: raw.note,
+  }
+}
+
 export async function fetchLiveSnapshot(): Promise<LiveSnapshot> {
-  const [fullState, auditEvents, escrowTotals, escrowLog] = await Promise.all([
-    readGenOS<RawFullState>('get_full_state'),
-    readGenOS<RawAudit[]>('get_audit_log'),
-    readEscrow<RawEscrowTotals>('get_totals'),
-    readEscrow<RawEscrowLog[]>('get_escrow_log'),
-  ])
+  const fullState = await readGenOS<RawFullState>('get_full_state')
+  await sleep(REQUEST_DELAY_MS)
+  const auditEvents = await readGenOS<RawAudit[]>('get_audit_log')
+  await sleep(REQUEST_DELAY_MS)
+  const escrowTotals = await readEscrow<RawEscrowTotals>('get_totals')
+  await sleep(REQUEST_DELAY_MS)
+  const escrowLog = await readEscrow<RawEscrowLog[]>('get_escrow_log')
+  await sleep(REQUEST_DELAY_MS)
+  const escrowIds = await readEscrow<number[]>('get_escrow_ids')
 
   const contracts: LiveContracts = {
     genosAddress: GENOS_CONTRACT_ADDRESS,
@@ -235,16 +271,30 @@ export async function fetchLiveSnapshot(): Promise<LiveSnapshot> {
     auditCount: fullState.audit_count,
   }
 
-  const [rawMandates, rawExecutions] = await Promise.all([
-    Promise.all(Array.from({ length: fullState.mandate_count }, (_, index) => readGenOS<RawMandate>('get_mandate', [index]))),
-    Promise.all(Array.from({ length: fullState.execution_count }, (_, index) => readGenOS<RawExecution>('get_execution', [index]))),
-  ])
+  const rawMandates: RawMandate[] = []
+  for (let index = 0; index < fullState.mandate_count; index += 1) {
+    await sleep(REQUEST_DELAY_MS)
+    rawMandates.push(await readGenOS<RawMandate>('get_mandate', [index]))
+  }
+
+  const rawExecutions: RawExecution[] = []
+  for (let index = 0; index < fullState.execution_count; index += 1) {
+    await sleep(REQUEST_DELAY_MS)
+    rawExecutions.push(await readGenOS<RawExecution>('get_execution', [index]))
+  }
+
+  const rawEscrows: RawEscrow[] = []
+  for (const escrowId of escrowIds) {
+    await sleep(REQUEST_DELAY_MS)
+    rawEscrows.push(await readEscrow<RawEscrow>('get_escrow', [escrowId]))
+  }
 
   return {
     contracts,
     mandates: rawMandates.map(toMandate),
     executions: rawExecutions.map(toExecution),
     evidence: rawExecutions.flatMap(toEvidence),
+    escrows: rawEscrows.map(toEscrow),
     auditEvents: auditEvents.map(toAuditEvent).reverse(),
     vault: toVault(escrowTotals, escrowLog.reverse(), contracts),
   }

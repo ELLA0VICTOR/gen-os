@@ -1,6 +1,7 @@
 export type MandateStatus = 'Active' | 'Paused' | 'Completed' | 'Expired'
 export type ExecutionStatus = 'Pending' | 'Approved' | 'Rejected' | 'Released' | 'Expired'
 export type EvidenceStatus = 'Verified' | 'Pending' | 'Rejected'
+export type EscrowStatus = 'funded' | 'released' | 'refunded'
 
 export type Mandate = {
   id: string
@@ -44,6 +45,18 @@ export type EvidenceItem = {
   url: string
   status: EvidenceStatus
   timestamp: string
+}
+
+export type EscrowRecord = {
+  executionId: string
+  depositor: string
+  recipient: string
+  amount: number
+  status: EscrowStatus | string
+  createdAt: string
+  releasedAt: string
+  refundedAt: string
+  note: string
 }
 
 export type AuditEvent = {
