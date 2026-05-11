@@ -23,9 +23,9 @@ Normal smart contracts are good at deterministic accounting, but weak at interpr
 - GenLayer Intelligent Contract in `contracts/gen_os.py`.
 - Bradbury-first network configuration.
 
-## GenLayer Contract
+## GenLayer Contracts
 
-Contract: `GenOS`
+Core contract: `GenOS`
 
 Constructor:
 
@@ -41,6 +41,7 @@ Write methods:
 - `evaluate_execution(execution_id)`
 - `admin_pause_mandate(mandate_id, reason)`
 - `admin_resume_mandate(mandate_id, reason)`
+- `admin_update_settlement_router(settlement_router)`
 - `record_settlement(execution_id, settlement_tx)`
 
 Read methods:
@@ -56,6 +57,33 @@ Read methods:
 - `get_audit_log()`
 - `get_full_state()`
 
+Escrow contract: `GenOSEscrow`
+
+Constructor:
+
+```text
+admin_address: string
+gen_os_address: string
+```
+
+Write methods:
+
+- `admin_update_gen_os_address(gen_os_address)`
+- `fund_execution(execution_id, recipient_address, note)` payable
+- `release_execution(execution_id)`
+- `refund_execution(execution_id, reason)`
+
+Read methods:
+
+- `get_admin()`
+- `get_gen_os_address()`
+- `get_escrow_count()`
+- `get_escrow_ids()`
+- `get_escrow(execution_id)`
+- `can_release(execution_id)`
+- `get_totals()`
+- `get_escrow_log()`
+
 ## Consensus Flow
 
 ```mermaid
@@ -69,7 +97,7 @@ flowchart TD
   G -->|Yes| H[Store Approved or Rejected Verdict]
   G -->|No| I[Evaluation Fails Safely]
   H --> J{Can Release?}
-  J -->|Yes| K[Record Settlement Intent]
+  J -->|Yes| K[Escrow Releases Native GEN]
   J -->|No| L[Hold Funds / Manual Review]
 ```
 
@@ -84,6 +112,14 @@ The contract follows the safe nondeterministic structure we learned from previou
 ## Bradbury Configuration
 
 GenLayer docs currently list Bradbury as the production-like testnet for real AI workloads.
+
+Live Bradbury deployment:
+
+```text
+GenOS:       0xf7b20D88fdE3581058eb04A21C959120EA7Ed7Cf
+GenOSEscrow: 0x706ea41ee7A9FF022671E5B5B5E99F2E7e20e6c8
+Admin:       0x35b27B6Fc827De934Fd3E755BcCc0Db5a42e002d
+```
 
 Frontend environment:
 
@@ -118,22 +154,34 @@ genvm-lint check contracts/gen_os.py --json
 Current validation result:
 
 ```json
-{"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOS","methods":16,"view_methods":10,"write_methods":6,"ctor_params":2}}
+{"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOS","methods":17,"view_methods":10,"write_methods":7,"ctor_params":2}}
+{"ok":true,"lint":{"ok":true,"passed":3},"validate":{"ok":true,"contract":"GenOSEscrow","methods":12,"view_methods":8,"write_methods":4,"ctor_params":2}}
 ```
 
 ## Bradbury Deployment Notes
 
-Use the GenLayer CLI or deploy scripts against Bradbury:
+Use the GenLayer CLI or deploy scripts against Bradbury.
+
+Deploy `GenOS` first:
 
 ```bash
 genlayer network testnet-bradbury
-genlayer deploy --contract contracts/gen_os.py --args "0xYourAdminAddress" "0xSettlementRouterOrVaultAddress"
+genlayer deploy --contract contracts/gen_os.py --args "0xYourAdminAddress" "0x0000000000000000000000000000000000000000"
 ```
+
+Deploy `GenOSEscrow` second, using the deployed `GenOS` address:
+
+```bash
+genlayer deploy --contract contracts/gen_os_escrow.py --args "0xYourAdminAddress" "0xDeployedGenOSAddress"
+```
+
+Then call `GenOS.admin_update_settlement_router("0xDeployedEscrowAddress")`.
 
 After deployment, set:
 
 ```text
 VITE_GENOS_CONTRACT_ADDRESS=0x...
+VITE_GENOS_ESCROW_ADDRESS=0x...
 ```
 
 ## Product Direction

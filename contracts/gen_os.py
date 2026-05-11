@@ -33,6 +33,12 @@ def clean_text(value: str, max_length: int) -> str:
     return value.strip()[:max_length]
 
 
+def to_address(value: typing.Any) -> Address:
+    if isinstance(value, Address):
+        return value
+    return Address(value)
+
+
 def require_text(value: str, field_name: str, max_length: int) -> str:
     cleaned = clean_text(value, max_length)
     if cleaned == "":
@@ -171,7 +177,7 @@ class AuditEvent:
 
 class GenOS(gl.Contract):
     admin: Address
-    settlement_router: str
+    settlement_router: Address
     mandates: TreeMap[u256, MandateRecord]
     executions: TreeMap[u256, ExecutionRecord]
     mandate_executions: TreeMap[u256, DynArray[u256]]
@@ -179,9 +185,9 @@ class GenOS(gl.Contract):
     next_mandate_id: u256
     next_execution_id: u256
 
-    def __init__(self, admin_address: str, settlement_router: str):
-        self.admin = Address(admin_address)
-        self.settlement_router = settlement_router
+    def __init__(self, admin_address: Address, settlement_router: Address):
+        self.admin = to_address(admin_address)
+        self.settlement_router = to_address(settlement_router)
         self.next_mandate_id = u256(0)
         self.next_execution_id = u256(0)
         self.audit_log = []
@@ -494,14 +500,31 @@ Respond with JSON only:
         self._append_audit(gl.message.sender_address, "MANDATE_RESUMED", mandate_key, "active", reason)
 
     @gl.public.write
+    def admin_update_settlement_router(self, settlement_router: Address):
+        self._require_admin()
+        self.settlement_router = to_address(settlement_router)
+        self._append_audit(
+            gl.message.sender_address,
+            "SETTLEMENT_ROUTER_UPDATED",
+            u256(0),
+            "updated",
+            format(self.settlement_router),
+        )
+
+    @gl.public.write
     def record_settlement(self, execution_id: int, settlement_tx: str):
         execution_key = self._require_execution(execution_id)
         execution = self.executions[execution_key]
 
         if execution.status != "approved":
             raise gl.vm.UserError(f"{ERROR_EXPECTED} Execution is not approved")
-        if gl.message.sender_address != execution.requester and gl.message.sender_address != self.admin:
-            raise gl.vm.UserError(f"{ERROR_EXPECTED} Only requester or admin can record settlement")
+        sender = gl.message.sender_address
+        if (
+            sender != execution.requester
+            and sender != self.admin
+            and sender != self.settlement_router
+        ):
+            raise gl.vm.UserError(f"{ERROR_EXPECTED} Only requester, router, or admin can record settlement")
 
         execution.status = "released"
         execution.settlement_tx = clean_text(settlement_tx, MAX_EVIDENCE_URL_CHARS)
@@ -514,7 +537,7 @@ Respond with JSON only:
 
     @gl.public.view
     def get_settlement_router(self) -> str:
-        return self.settlement_router
+        return format(self.settlement_router)
 
     @gl.public.view
     def get_mandate_count(self) -> int:
@@ -568,7 +591,7 @@ Respond with JSON only:
     def get_full_state(self) -> dict:
         return {
             "admin": format(self.admin),
-            "settlement_router": self.settlement_router,
+            "settlement_router": format(self.settlement_router),
             "mandate_count": int(self.next_mandate_id),
             "execution_count": int(self.next_execution_id),
             "audit_count": len(self.audit_log),
