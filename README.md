@@ -124,7 +124,8 @@ Admin:       0x35b27B6Fc827De934Fd3E755BcCc0Db5a42e002d
 Frontend environment:
 
 ```text
-VITE_GENOS_CONTRACT_ADDRESS=
+VITE_GENOS_CONTRACT_ADDRESS=0xf7b20D88fdE3581058eb04A21C959120EA7Ed7Cf
+VITE_GENOS_ESCROW_ADDRESS=0x706ea41ee7A9FF022671E5B5B5E99F2E7e20e6c8
 VITE_GENLAYER_RPC_URL=https://rpc-bradbury.genlayer.com
 VITE_GENLAYER_CHAIN_RPC_URL=https://rpc.testnet-chain.genlayer.com
 VITE_GENLAYER_CHAIN_ID=4221
@@ -186,4 +187,4 @@ VITE_GENOS_ESCROW_ADDRESS=0x...
 
 ## Product Direction
 
-The MVP UI currently uses realistic local data while the contract is validated and deployment-ready. The next integration step is wiring the frontend read/write layer to the deployed Bradbury contract address, then adding an EVM settlement router so approved GenLayer verdicts can unlock real escrow flows.
+The MVP UI currently uses realistic local data while the Bradbury contracts are live and verified. The next integration step is wiring the frontend read/write layer to `GenOS` and `GenOSEscrow` so users can create mandates, submit executions, evaluate evidence, fund escrow, and release native GEN from the app.
