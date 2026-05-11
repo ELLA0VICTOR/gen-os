@@ -517,6 +517,7 @@
 .hero-section {
   min-height: 100vh;
   display: grid;
+  gap: var(--space-5);
   place-items: center;
   padding: calc(var(--nav-height) + var(--space-16)) var(--space-6) var(--space-10);
   position: relative;
@@ -1508,7 +1509,7 @@
     display: inline-flex;
     position: static;
     justify-self: center;
-    margin-top: calc(-1 * var(--space-2));
+    margin-top: 0;
   }
 }
 
