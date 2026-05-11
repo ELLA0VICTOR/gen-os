@@ -9,7 +9,7 @@ import { useAppContext } from '../context/AppContext'
 import type { ExecutionStatus } from '../mock/types'
 import { currency, relativeTime } from '../utils/format'
 
-const tabs: Array<'All' | ExecutionStatus> = ['All', 'Pending', 'Approved', 'Rejected', 'Expired']
+const tabs: Array<'All' | ExecutionStatus> = ['All', 'Pending', 'Approved', 'Rejected', 'Released', 'Expired']
 
 export function Executions() {
   const { state } = useAppContext()
@@ -57,7 +57,7 @@ export function Executions() {
         </div>
         {filtered.map((execution) => {
           const mandate = state.mandates.find((item) => item.id === execution.mandateId)
-          const tone = execution.status === 'Approved' ? 'approved' : execution.status === 'Rejected' ? 'rejected' : 'pending'
+          const tone = execution.status === 'Approved' || execution.status === 'Released' ? 'approved' : execution.status === 'Rejected' ? 'rejected' : 'pending'
           return (
             <div className="execution-row" key={execution.id}>
               <StatusDot tone={tone} label={execution.status} />
@@ -74,6 +74,13 @@ export function Executions() {
           )
         })}
       </div>
+
+      {filtered.length === 0 && (
+        <div className="empty-state card">
+          <h2>No executions found</h2>
+          <p>{state.executions.length === 0 ? 'Submit an execution from a mandate detail page to start GenLayer evaluation.' : 'Try another status tab.'}</p>
+        </div>
+      )}
     </section>
   )
 }

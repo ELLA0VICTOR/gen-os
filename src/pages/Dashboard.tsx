@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Audit, Execution, Mandate, ShieldCheck, Vault } from '../components/icons/Icons'
+import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { RiskMeter } from '../components/ui/RiskMeter'
 import { StatusDot } from '../components/ui/StatusDot'
@@ -10,16 +11,16 @@ import { currency, percent, relativeTime } from '../utils/format'
 const metricIcons = [Vault, Mandate, Execution, ShieldCheck]
 
 export function Dashboard() {
-  const { state } = useAppContext()
+  const { refreshLiveState, state } = useAppContext()
   const pending = state.executions.filter((execution) => execution.status === 'Pending').length
-  const approved = state.executions.filter((execution) => execution.status === 'Approved').length
+  const approved = state.executions.filter((execution) => execution.status === 'Approved' || execution.status === 'Released').length
   const compliance = (approved / Math.max(1, state.executions.length)) * 100
 
   const metrics = [
-    { label: 'Total Locked', value: `$${currency(state.vault.balance)}`, delta: '+$10k this week' },
-    { label: 'Active Mandates', value: String(state.mandates.filter((mandate) => mandate.status === 'Active').length), delta: '+2 this week' },
-    { label: 'Pending Review', value: String(pending), delta: '3 under SLA' },
-    { label: 'Policy Compliance', value: percent(compliance), delta: '+4.1% this month' },
+    { label: 'Native GEN Locked', value: `${currency(state.vault.balance)} GEN`, delta: state.contracts ? 'Live escrow read' : 'Local preview' },
+    { label: 'Active Mandates', value: String(state.mandates.filter((mandate) => mandate.status === 'Active').length), delta: `${state.contracts?.mandateCount ?? state.mandates.length} on-chain` },
+    { label: 'Pending Review', value: String(pending), delta: `${state.contracts?.executionCount ?? state.executions.length} executions` },
+    { label: 'Policy Compliance', value: percent(compliance), delta: state.contracts ? 'Bradbury accepted state' : 'Preview state' },
   ]
 
   return (
@@ -28,6 +29,23 @@ export function Dashboard() {
         <p className="eyebrow">GEN//OS / Dashboard</p>
         <h1>Command Center</h1>
       </div>
+
+      <Card className="live-panel">
+        <div>
+          <span className="eyebrow">Bradbury Live State</span>
+          <strong>{state.liveError ? 'Contract read needs attention' : state.liveLoading ? 'Syncing accepted state...' : 'Connected to deployed GenOS'}</strong>
+          <p>
+            {state.liveError
+              ? state.liveError
+              : state.liveSyncedAt
+                ? `Last synced ${relativeTime(state.liveSyncedAt)} from ${state.contracts?.genosAddress}`
+                : 'Reading live contract state from Bradbury.'}
+          </p>
+        </div>
+        <Button variant="secondary" disabled={state.liveLoading} onClick={refreshLiveState}>
+          {state.liveLoading ? 'Refreshing...' : 'Refresh'}
+        </Button>
+      </Card>
 
       <div className="metrics-grid">
         {metrics.map((metric, index) => {
@@ -52,7 +70,7 @@ export function Dashboard() {
           <div className="feed-list">
             {state.executions.slice(0, 6).map((execution) => {
               const mandate = state.mandates.find((item) => item.id === execution.mandateId)
-              const tone = execution.status === 'Approved' ? 'approved' : execution.status === 'Rejected' ? 'rejected' : 'pending'
+              const tone = execution.status === 'Approved' || execution.status === 'Released' ? 'approved' : execution.status === 'Rejected' ? 'rejected' : 'pending'
               return (
                 <Link className="feed-row" key={execution.id} to={`/executions/${execution.id}`}>
                   <StatusDot tone={tone} label={execution.status} />
@@ -64,6 +82,7 @@ export function Dashboard() {
                 </Link>
               )
             })}
+            {state.executions.length === 0 && <p>No live executions yet. Create a mandate, then submit an execution request.</p>}
           </div>
         </Card>
 
@@ -88,6 +107,7 @@ export function Dashboard() {
                 </Link>
               )
             })}
+            {state.mandates.length === 0 && <p>No live mandates yet. The first deployed mandate will appear here.</p>}
           </div>
         </Card>
       </div>

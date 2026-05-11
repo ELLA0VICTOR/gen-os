@@ -5,7 +5,6 @@ import { Card } from '../components/ui/Card'
 import { Input, Textarea } from '../components/ui/Input'
 import { RiskMeter } from '../components/ui/RiskMeter'
 import { useAppContext } from '../context/AppContext'
-import type { Mandate } from '../mock/types'
 
 const steps = ['Define', 'Policy', 'Budget', 'Review']
 const policyOptions = [
@@ -19,10 +18,11 @@ const policyOptions = [
 
 export function MandateCreate() {
   const navigate = useNavigate()
-  const { addMandate, state } = useAppContext()
+  const { createMandate, notify, state } = useAppContext()
   const [step, setStep] = useState(0)
   const [selectedRules, setSelectedRules] = useState(policyOptions.slice(0, 4))
   const [riskThreshold, setRiskThreshold] = useState(2)
+  const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     name: 'AI Agent Shipping Mandate',
     operator: '0x8A340271fE75c6bAB65A36d6625Ff9A432fF8421',
@@ -30,8 +30,8 @@ export function MandateCreate() {
     text: 'Release payment only after the agent submits a public pull request, the implementation matches the scope, CI passes, and the preview URL is reachable. Reject unrelated code, stale evidence, or work that exceeds the approved budget.',
     maxPerTask: '1000',
     totalBudget: '6000',
-    expiry: '90 days',
-    vault: state.vault.address,
+    expiry: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+    vault: state.vault.escrowContract,
   })
 
   function update(key: keyof typeof form, value: string) {
@@ -42,27 +42,31 @@ export function MandateCreate() {
     setSelectedRules((current) => (current.includes(rule) ? current.filter((item) => item !== rule) : [...current, rule]))
   }
 
-  function deployMandate() {
-    const mandate: Mandate = {
-      id: `mandate-${String(state.mandates.length + 1).padStart(3, '0')}`,
-      name: form.name,
-      creator: state.walletAddress ?? '0x28E7C6DFe94c9F11aD05A8C35B49e091B2d73051',
-      operator: form.operator,
-      network: form.network,
-      status: 'Active',
-      text: form.text,
-      rules: selectedRules,
-      riskThreshold,
-      maxPerTask: Number(form.maxPerTask),
-      totalBudget: Number(form.totalBudget),
-      spent: 0,
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      executions: 0,
-    }
+  async function deployMandate() {
+    setSubmitting(true)
 
-    addMandate(mandate)
-    navigate(`/mandates/${mandate.id}`)
+    try {
+      await createMandate({
+        operatorAddress: form.operator,
+        title: form.name,
+        policyText: form.text,
+        rulesCsv: selectedRules.join(', '),
+        riskThreshold,
+        maxPerExecution: Number(form.maxPerTask),
+        totalBudget: Number(form.totalBudget),
+        expiresAt: form.expiry,
+        vaultAddress: form.vault,
+      })
+      navigate('/mandates')
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: 'Mandate deployment failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -146,16 +150,16 @@ export function MandateCreate() {
         )}
 
         <div className="form-actions">
-          <Button variant="ghost" onClick={() => setStep((current) => Math.max(0, current - 1))}>
-            Back
-          </Button>
+            <Button variant="ghost" disabled={submitting} onClick={() => setStep((current) => Math.max(0, current - 1))}>
+              Back
+            </Button>
           {step < steps.length - 1 ? (
-            <Button variant="primary" onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>
+            <Button variant="primary" disabled={submitting} onClick={() => setStep((current) => Math.min(steps.length - 1, current + 1))}>
               Continue
             </Button>
           ) : (
-            <Button variant="primary" onClick={deployMandate}>
-              Deploy Mandate
+            <Button variant="primary" disabled={submitting} onClick={deployMandate}>
+              {submitting ? 'Deploying on Bradbury...' : 'Deploy Mandate'}
             </Button>
           )}
         </div>

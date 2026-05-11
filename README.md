@@ -21,6 +21,8 @@ Normal smart contracts are good at deterministic accounting, but weak at interpr
 - Custom inline SVG icon system.
 - Responsive command-center routes for dashboard, mandates, executions, evidence, audit, and vault.
 - GenLayer Intelligent Contract in `contracts/gen_os.py`.
+- Live Bradbury reads through `genlayer-js`.
+- Browser-wallet signed writes for mandate creation, execution submission, escrow funding, evidence evaluation, and escrow release.
 - Bradbury-first network configuration.
 
 ## GenLayer Contracts
@@ -131,7 +133,7 @@ VITE_GENLAYER_CHAIN_RPC_URL=https://rpc.testnet-chain.genlayer.com
 VITE_GENLAYER_CHAIN_ID=4221
 ```
 
-Never expose a private key through a `VITE_` variable. Keep deploy keys in local scripts or backend-only environments.
+Never expose a private key through a `VITE_` variable. The frontend uses browser-wallet signing for writes, while deploy keys should stay in local CLI keystores or backend-only environments.
 
 ## Local Development
 
@@ -185,6 +187,23 @@ VITE_GENOS_CONTRACT_ADDRESS=0x...
 VITE_GENOS_ESCROW_ADDRESS=0x...
 ```
 
-## Product Direction
+## Frontend Integration
 
-The MVP UI currently uses realistic local data while the Bradbury contracts are live and verified. The next integration step is wiring the frontend read/write layer to `GenOS` and `GenOSEscrow` so users can create mandates, submit executions, evaluate evidence, fund escrow, and release native GEN from the app.
+The app now reads accepted state from the deployed Bradbury contracts:
+
+- `get_full_state()`
+- `get_mandate(...)`
+- `get_execution(...)`
+- `get_audit_log()`
+- `GenOSEscrow.get_totals()`
+- `GenOSEscrow.get_escrow_log()`
+
+Write actions are signed by a connected browser wallet on Bradbury:
+
+- Create a mandate from `/mandates/new`.
+- Submit an execution from a mandate detail page.
+- Fund native GEN escrow from an execution detail page.
+- Run GenLayer evidence evaluation from an execution detail page.
+- Release escrow after a GenOS-approved verdict.
+
+If no live mandates exist yet, the dashboard intentionally shows empty Bradbury state rather than pretending mock data is on-chain.

@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Check, Clock, ExternalLink, Loader, ShieldCheck, ShieldX } from '../components/icons/Icons'
 import { AddressDisplay } from '../components/ui/AddressDisplay'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { Input } from '../components/ui/Input'
 import { RiskMeter } from '../components/ui/RiskMeter'
 import { Tag } from '../components/ui/Tag'
 import { useAppContext } from '../context/AppContext'
@@ -10,12 +12,83 @@ import { currency, readableDate } from '../utils/format'
 
 export function ExecutionDetail() {
   const { id } = useParams()
-  const { state, notify } = useAppContext()
+  const { evaluateExecution, fundExecution, releaseExecution, state, notify } = useAppContext()
+  const [busyAction, setBusyAction] = useState<'fund' | 'evaluate' | 'release' | null>(null)
+  const [fundAmount, setFundAmount] = useState('0.01')
   const execution = state.executions.find((item) => item.id === id) ?? state.executions[0]
+
+  if (!execution) {
+    return (
+      <section className="page">
+        <Card className="empty-state">
+          <h1>No execution found</h1>
+          <p>Submit an execution from a mandate detail page, then GenLayer verdicts will appear here.</p>
+          <Link className="btn btn-primary btn-md" to="/mandates">
+            Open Mandates
+          </Link>
+        </Card>
+      </section>
+    )
+  }
+
   const mandate = state.mandates.find((item) => item.id === execution.mandateId) ?? state.mandates[0]
   const evidence = state.evidence.filter((item) => item.executionId === execution.id)
-  const approved = execution.status === 'Approved'
+  const approved = execution.status === 'Approved' || execution.status === 'Released'
   const rejected = execution.status === 'Rejected'
+  const executionNumericId = Number(execution.id.replace('execution-', ''))
+
+  async function handleEvaluate() {
+    setBusyAction('evaluate')
+
+    try {
+      await evaluateExecution(executionNumericId)
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: 'Evaluation failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleFund() {
+    setBusyAction('fund')
+
+    try {
+      await fundExecution({
+        executionId: executionNumericId,
+        recipientAddress: execution.vendor,
+        amountGen: fundAmount,
+        note: `Escrow for ${execution.id}`,
+      })
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: 'Escrow funding failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusyAction(null)
+    }
+  }
+
+  async function handleRelease() {
+    setBusyAction('release')
+
+    try {
+      await releaseExecution(executionNumericId)
+    } catch (error) {
+      notify({
+        tone: 'error',
+        title: 'Release failed',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    } finally {
+      setBusyAction(null)
+    }
+  }
 
   return (
     <section className="page">
@@ -28,7 +101,7 @@ export function ExecutionDetail() {
             </div>
             <div className="request-grid">
               <span>Mandate</span>
-              <Link to={`/mandates/${mandate.id}`}>{mandate.name}</Link>
+              {mandate ? <Link to={`/mandates/${mandate.id}`}>{mandate.name}</Link> : <strong>Unknown mandate</strong>}
               <span>Requested by</span>
               <AddressDisplay address={execution.requester} />
               <span>Vendor</span>
@@ -95,9 +168,22 @@ export function ExecutionDetail() {
                 </span>
               ))}
             </div>
-            {approved && (
-              <Button variant="primary" onClick={() => notify({ tone: 'success', title: 'Release queued', message: 'Settlement intent recorded.' })}>
-                Release Payment
+            {execution.status !== 'Released' && (
+              <div className="fund-block">
+                <Input label="Escrow amount (GEN)" value={fundAmount} onChange={(event) => setFundAmount(event.target.value)} />
+                <Button variant="secondary" disabled={busyAction !== null} onClick={handleFund}>
+                  {busyAction === 'fund' ? 'Funding...' : 'Fund Escrow'}
+                </Button>
+              </div>
+            )}
+            {execution.status === 'Pending' && (
+              <Button variant="primary" disabled={busyAction !== null} onClick={handleEvaluate}>
+                {busyAction === 'evaluate' ? 'Evaluating...' : 'Run GenLayer Evaluation'}
+              </Button>
+            )}
+            {approved && execution.status !== 'Released' && (
+              <Button variant="primary" disabled={busyAction !== null} onClick={handleRelease}>
+                {busyAction === 'release' ? 'Releasing...' : 'Release Escrow'}
               </Button>
             )}
             <Button variant="danger" onClick={() => notify({ tone: 'warning', title: 'Escalation staged', message: 'Manual override flow opened.' })}>

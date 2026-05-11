@@ -86,6 +86,16 @@ export function Mandates() {
           )
         })}
       </div>
+
+      {filtered.length === 0 && (
+        <Card className="empty-state">
+          <h2>No mandates found</h2>
+          <p>{state.mandates.length === 0 ? 'Create the first live Bradbury mandate to begin.' : 'Try a different search or status filter.'}</p>
+          <Link className="btn btn-primary btn-md" to="/mandates/new">
+            New Mandate
+          </Link>
+        </Card>
+      )}
     </section>
   )
 }

@@ -1,5 +1,5 @@
 export type MandateStatus = 'Active' | 'Paused' | 'Completed' | 'Expired'
-export type ExecutionStatus = 'Pending' | 'Approved' | 'Rejected' | 'Expired'
+export type ExecutionStatus = 'Pending' | 'Approved' | 'Rejected' | 'Released' | 'Expired'
 export type EvidenceStatus = 'Verified' | 'Pending' | 'Rejected'
 
 export type Mandate = {
@@ -52,7 +52,7 @@ export type AuditEvent = {
   actor: string
   action: string
   target: string
-  result: 'approved' | 'rejected' | 'pending' | 'created' | 'released'
+  result: string
 }
 
 export type VaultState = {
@@ -63,7 +63,7 @@ export type VaultState = {
   authorizedAgents: string[]
   transactions: Array<{
     id: string
-    type: 'Deposit' | 'Release' | 'Hold' | 'Withdrawal'
+    type: string
     amount: number
     counterparty: string
     txHash: string
