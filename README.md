@@ -250,3 +250,7 @@ Write actions are signed by a connected browser wallet on Bradbury:
 - Refund escrow after a rejected verdict.
 
 If no live mandates exist yet, the dashboard intentionally shows empty Bradbury state rather than pretending mock data is on-chain.
+
+## Vercel Deployment
+
+GEN-OS uses React Router with browser history. The included `vercel.json` rewrites all routes to `index.html`, so refreshing pages like `/mandates/mandate-0` or `/executions/execution-0` works instead of returning a Vercel `404: NOT_FOUND`.
