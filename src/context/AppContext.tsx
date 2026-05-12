@@ -5,6 +5,7 @@ import {
   GENOS_ESCROW_ADDRESS,
   connectBradburyWallet,
   parseGenToWei,
+  readGenOS,
   waitForAccepted,
   writeEscrow,
   writeGenOS,
@@ -38,6 +39,13 @@ type AppState = {
 }
 
 type PersistedSnapshot = Pick<AppState, 'contracts' | 'mandates' | 'executions' | 'evidence' | 'escrows' | 'auditEvents' | 'vault' | 'liveSyncedAt'>
+
+type RawEvaluationExecution = {
+  status: string
+  required_action: string
+  verdict_reason: string
+  evaluated_at: string
+}
 
 type Action =
   | { type: 'connect_wallet'; address: string }
@@ -245,6 +253,35 @@ function requireWholeGenAmount(value: number, label: string) {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function isEvaluationFinalized(execution: RawEvaluationExecution | null) {
+  if (!execution) return false
+  return ['approved', 'rejected', 'released'].includes(execution.status) || execution.evaluated_at !== ''
+}
+
+async function readExecutionForRecovery(executionId: number) {
+  try {
+    return await readGenOS<RawEvaluationExecution>('get_execution', [executionId])
+  } catch {
+    return null
+  }
+}
+
+async function waitForEvaluationFinality(executionId: number) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await sleep(3000)
+    const execution = await readExecutionForRecovery(executionId)
+    if (isEvaluationFinalized(execution)) {
+      return execution
+    }
+  }
+
+  return null
+}
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState)
   const providerRef = useRef<EthereumProvider | null>(null)
@@ -386,10 +423,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   async function evaluateExecution(executionId: number) {
     const { account, provider } = await requireWallet()
+
+    const currentExecution = await readExecutionForRecovery(executionId)
+    if (isEvaluationFinalized(currentExecution)) {
+      await refreshLiveState()
+      notify({
+        tone: 'success',
+        title: 'Evaluation already finalized',
+        message: currentExecution?.verdict_reason || 'The live Bradbury state already contains a verdict.',
+      })
+      return
+    }
+
     const hash = await writeGenOS(account, provider, 'evaluate_execution', [executionId])
 
     notify({ tone: 'info', title: 'GenLayer evaluation started', message: String(hash) })
-    await waitForAccepted(hash as `0x${string}`)
+
+    try {
+      await waitForAccepted(hash as `0x${string}`)
+    } catch (error) {
+      notify({
+        tone: 'warning',
+        title: 'Checking delayed Bradbury finality',
+        message: 'The transaction response was unclear, so GEN-OS is checking the live verdict before marking this as failed.',
+      })
+
+      const finalizedExecution = await waitForEvaluationFinality(executionId)
+      if (isEvaluationFinalized(finalizedExecution)) {
+        await refreshLiveState()
+        notify({
+          tone: 'success',
+          title: 'Execution verdict finalized',
+          message: finalizedExecution?.verdict_reason || 'The verdict was found on-chain after delayed finality.',
+        })
+        return
+      }
+
+      throw new Error(`${formatError(error)}. The transaction may still finalize on Bradbury; refresh in a few seconds before retrying.`)
+    }
+
     await refreshLiveState()
     notify({ tone: 'success', title: 'Execution verdict finalized' })
   }

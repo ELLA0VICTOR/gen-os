@@ -199,6 +199,8 @@ Use a wallet funded with Bradbury testnet GEN.
 8. If approved, click `Release Escrow`. The escrow sends the funded GEN to the recipient and records settlement on GenOS.
 9. If rejected, use `Refund Escrow` to return the funded GEN to the depositor.
 
+Bradbury finality can occasionally lag behind the browser transaction waiter. If the evaluation receipt times out or returns an unclear response, the frontend checks `get_execution(...)` directly for up to 30 seconds before showing a hard failure. If a verdict is already stored, GEN-OS refreshes the live state and treats the evaluation as finalized instead of requiring a risky retry.
+
 Expected clean-state behavior after the current deployment: zero mandates, zero executions, and zero escrow totals until a connected wallet creates new live Bradbury data.
 
 ## Bradbury Deployment Notes
